@@ -1,8 +1,11 @@
+"use client";
+
 import { useState, useRef, useCallback } from "react";
 
 export default function GridSelection() {
   const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
   const [isSelecting, setIsSelecting] = useState(false);
+  const [justFinishedSelecting, setJustFinishedSelecting] = useState(false);
   const [startPixel, setStartPixel] = useState<{ x: number; y: number }>({
     x: 0,
     y: 0,
@@ -63,6 +66,7 @@ export default function GridSelection() {
     setStartPixel(pixelPos);
     setCurrentPixel(pixelPos);
     setIsSelecting(true);
+    setJustFinishedSelecting(false);
     setSelectedCells(new Set());
   }, []);
 
@@ -80,13 +84,20 @@ export default function GridSelection() {
     const finalSelection = getCellsInSelectionBox(startPixel, currentPixel);
     setSelectedCells(finalSelection);
     setIsSelecting(false);
+    setJustFinishedSelecting(true);
+    // Clear the flag after a short delay to allow click event to be ignored
+    setTimeout(() => setJustFinishedSelecting(false), 50);
   }, [isSelecting, startPixel, currentPixel, getCellsInSelectionBox]);
 
-  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (!gridRef.current?.contains(e.target as Node)) {
-      setSelectedCells(new Set());
-    }
-  }, []);
+  const handleClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (justFinishedSelecting) return; // Ignore clicks right after finishing selection
+      if (!gridRef.current?.contains(e.target as Node)) {
+        setSelectedCells(new Set());
+      }
+    },
+    [justFinishedSelecting]
+  );
 
   const currentSelection = isSelecting
     ? getCellsInSelectionBox(startPixel, currentPixel)
