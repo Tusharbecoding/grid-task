@@ -1,103 +1,152 @@
-import Image from "next/image";
+import { useState, useRef, useCallback } from "react";
 
-export default function Home() {
+export default function GridSelection() {
+  const [selectedCells, setSelectedCells] = useState<Set<string>>(new Set());
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [startPixel, setStartPixel] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  const [currentPixel, setCurrentPixel] = useState<{ x: number; y: number }>({
+    x: 0,
+    y: 0,
+  });
+  const gridRef = useRef<HTMLDivElement>(null);
+
+  const getCellsInSelectionBox = useCallback(
+    (
+      startPixel: { x: number; y: number },
+      endPixel: { x: number; y: number }
+    ) => {
+      if (!gridRef.current) return new Set<string>();
+
+      const rect = gridRef.current.getBoundingClientRect();
+      const cells = new Set<string>();
+
+      const minX = Math.min(startPixel.x, endPixel.x);
+      const maxX = Math.max(startPixel.x, endPixel.x);
+      const minY = Math.min(startPixel.y, endPixel.y);
+      const maxY = Math.max(startPixel.y, endPixel.y);
+      const startGridX = Math.max(0, Math.floor((minX - rect.left) / 20));
+      const endGridX = Math.min(9, Math.floor((maxX - rect.left) / 20));
+      const startGridY = Math.max(0, Math.floor((minY - rect.top) / 20));
+      const endGridY = Math.min(9, Math.floor((maxY - rect.top) / 20));
+
+      for (let x = startGridX; x <= endGridX; x++) {
+        for (let y = startGridY; y <= endGridY; y++) {
+          if (x >= 0 && x < 10 && y >= 0 && y < 10) {
+            const cellLeft = rect.left + x * 20;
+            const cellRight = cellLeft + 20;
+            const cellTop = rect.top + y * 20;
+            const cellBottom = cellTop + 20;
+
+            if (
+              cellRight > minX &&
+              cellLeft < maxX &&
+              cellBottom > minY &&
+              cellTop < maxY
+            ) {
+              cells.add(`${x}-${y}`);
+            }
+          }
+        }
+      }
+      return cells;
+    },
+    []
+  );
+
+  const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const pixelPos = { x: e.clientX, y: e.clientY };
+    setStartPixel(pixelPos);
+    setCurrentPixel(pixelPos);
+    setIsSelecting(true);
+    setSelectedCells(new Set());
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!isSelecting) return;
+      const pixelPos = { x: e.clientX, y: e.clientY };
+      setCurrentPixel(pixelPos);
+    },
+    [isSelecting]
+  );
+
+  const handleMouseUp = useCallback(() => {
+    if (!isSelecting) return;
+    const finalSelection = getCellsInSelectionBox(startPixel, currentPixel);
+    setSelectedCells(finalSelection);
+    setIsSelecting(false);
+  }, [isSelecting, startPixel, currentPixel, getCellsInSelectionBox]);
+
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!gridRef.current?.contains(e.target as Node)) {
+      setSelectedCells(new Set());
+    }
+  }, []);
+
+  const currentSelection = isSelecting
+    ? getCellsInSelectionBox(startPixel, currentPixel)
+    : new Set();
+
+  const getSelectionBoxStyle = (): React.CSSProperties => {
+    if (!isSelecting) return { display: "none" };
+
+    const minX = Math.min(startPixel.x, currentPixel.x);
+    const maxX = Math.max(startPixel.x, currentPixel.x);
+    const minY = Math.min(startPixel.y, currentPixel.y);
+    const maxY = Math.max(startPixel.y, currentPixel.y);
+
+    return {
+      position: "fixed" as const,
+      left: minX,
+      top: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+      pointerEvents: "none" as const,
+      zIndex: 9999,
+    };
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
+    <div
+      className="p-8 select-none min-h-screen w-full"
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
+      onClick={handleClick}
+    >
+      {isSelecting && (
+        <div
+          className="border-2 border-dashed border-gray-800"
+          style={getSelectionBoxStyle()}
         />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+      )}
+      <div ref={gridRef} className="inline-block relative">
+        {Array.from({ length: 10 }, (_, y) => (
+          <div key={y} className="flex">
+            {Array.from({ length: 10 }, (_, x) => {
+              const cellId = `${x}-${y}`;
+              const isSelected = selectedCells.has(cellId);
+              const isCurrentlySelecting = currentSelection.has(cellId);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+              return (
+                <div
+                  key={cellId}
+                  className={`w-5 h-5 border border-black ${
+                    isSelected || isCurrentlySelecting
+                      ? "bg-orange-600"
+                      : "bg-white"
+                  }`}
+                />
+              );
+            })}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
