@@ -85,13 +85,12 @@ export default function GridSelection() {
     setSelectedCells(finalSelection);
     setIsSelecting(false);
     setJustFinishedSelecting(true);
-    // Clear the flag after a short delay to allow click event to be ignored
     setTimeout(() => setJustFinishedSelecting(false), 50);
   }, [isSelecting, startPixel, currentPixel, getCellsInSelectionBox]);
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (justFinishedSelecting) return; // Ignore clicks right after finishing selection
+      if (justFinishedSelecting) return;
       if (!gridRef.current?.contains(e.target as Node)) {
         setSelectedCells(new Set());
       }
